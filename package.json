@@ -1,0 +1,38 @@
+{
+  "name": "firebase-app-template",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Opinionated Firebase + web app starter with CI/CD and an agent setup runbook.",
+  "type": "module",
+  "workspaces": [
+    "app"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace app",
+    "dev": "npm run dev --workspace app",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "firebase emulators:exec --only firestore --project demo-template --config firebase/firebase.json \"vitest run -c vitest.integration.config.ts\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "firebase-tools": "^15.22.3",
+    "globals": "^15.11.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.10.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

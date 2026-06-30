@@ -1,0 +1,61 @@
+name: Firebase Hosting
+
+# Builds the app and deploys it: a live release on merge to main, a preview channel on PRs.
+# Project id derived from the service-account key; the app's public web config comes from the
+# VITE_FIREBASE_* repo secrets. No-ops gracefully until the secret is set.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  build_and_deploy:
+    # Skip PRs from forks (no access to secrets).
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - name: Resolve project (gate on secret)
+        id: fb
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "No FIREBASE_SERVICE_ACCOUNT secret yet — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "id=$(node -e 'process.stdout.write(JSON.parse(process.env.SA).project_id)')" >> "$GITHUB_OUTPUT"
+
+      - name: Build app
+        if: steps.fb.outputs.skip != 'true'
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: |
+          npm ci
+          npm run build
+          rm -rf firebase/public && cp -r app/dist firebase/public
+
+      - name: Deploy to Firebase Hosting
+        if: steps.fb.outputs.skip != 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ steps.fb.outputs.id }}
+          entryPoint: ./firebase
+          channelId: ${{ github.event_name == 'push' && 'live' || '' }}

@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+build/
+lib/
+*.tsbuildinfo
+
+# firebase
+.firebase/
+*-debug.log
+.firebaserc
+
+# env / secrets
+.env
+.env.*
+!.env.example
+*serviceAccount*.json
+*service-account*.json
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# test
+coverage/
+
+# hosting build output (app/dist is copied here before deploy)
+firebase/public/

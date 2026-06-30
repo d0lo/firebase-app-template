@@ -1,0 +1,42 @@
+name: Deploy Firestore rules
+
+# Deploys security rules via w9jds/firebase-action. Configured entirely by the
+# FIREBASE_SERVICE_ACCOUNT secret — the project id is derived from the key, so there's
+# nothing to hardcode. No-ops gracefully until the secret is set.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firebase/firestore.rules"
+      - "firebase/firestore.indexes.json"
+      - ".github/workflows/firebase-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve project (gate on secret)
+        id: fb
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "No FIREBASE_SERVICE_ACCOUNT secret yet — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "id=$(node -e 'process.stdout.write(JSON.parse(process.env.SA).project_id)')" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Firestore rules
+        if: steps.fb.outputs.skip != 'true'
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only firestore:rules --project ${{ steps.fb.outputs.id }}
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_PATH: ./firebase

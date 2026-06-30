@@ -1,0 +1,56 @@
+name: Deploy Cloud Functions
+
+# Bundles functions with esbuild, then deploys via w9jds/firebase-action.
+# NOTE: Cloud Functions require the Blaze (pay-as-you-go) plan. This fails on the free
+# Spark plan until billing is enabled. No-ops gracefully until the secret is set.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firebase/functions/**"
+      - "firebase/firebase.json"
+      - ".github/workflows/firebase-functions-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "firebase deploy --only target (e.g. functions:ping)"
+        required: false
+        default: "functions"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve project (gate on secret)
+        id: fb
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "No FIREBASE_SERVICE_ACCOUNT secret yet — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "id=$(node -e 'process.stdout.write(JSON.parse(process.env.SA).project_id)')" >> "$GITHUB_OUTPUT"
+
+      - name: Install + bundle functions
+        if: steps.fb.outputs.skip != 'true'
+        run: |
+          npm --prefix firebase/functions ci
+          npm --prefix firebase/functions run build
+
+      - name: Deploy Cloud Functions
+        if: steps.fb.outputs.skip != 'true'
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only ${{ github.event.inputs.only || 'functions' }} --project ${{ steps.fb.outputs.id }}
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_PATH: ./firebase
