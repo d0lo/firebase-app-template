@@ -11,6 +11,9 @@ The design goal: the user provides **one secret** (a service-account key) and do
 irreducible console clicks; **you do everything else**, including reading deploy logs and
 fixing failures. The project id is derived from the key — nothing is hardcoded.
 
+> The full out-of-code settings/permissions list is in [`docs/SETTINGS.md`](docs/SETTINGS.md).
+> Note these do **not** copy when a repo is created from this template — re-apply them each time.
+
 ---
 
 ## Phase 0 — Decide scope
