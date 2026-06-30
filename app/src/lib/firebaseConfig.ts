@@ -1,0 +1,15 @@
+// Firebase web config, read from VITE_FIREBASE_* env vars at build time. These come from
+// GitHub Actions repo secrets in CI, or a local app/.env for dev (see app/.env.example).
+// The web config is PUBLIC by design — protection comes from security rules + Auth.
+export const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+/** True once the build was given a real project's VITE_FIREBASE_* values. */
+export const isConfigured = (): boolean =>
+  Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);

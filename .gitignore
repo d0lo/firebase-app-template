@@ -4,8 +4,10 @@ node_modules/
 # builds
 dist/
 build/
-lib/
 *.tsbuildinfo
+# functions bundle output (scoped path — NOT a bare `lib/`, which would also
+# swallow real source dirs like app/src/lib)
+/firebase/functions/lib/
 
 # firebase
 .firebase/

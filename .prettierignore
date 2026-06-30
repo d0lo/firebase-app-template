@@ -1,6 +1,6 @@
 **/node_modules/**
 **/dist/**
-**/lib/**
+firebase/functions/lib/**
 **/coverage/**
 package-lock.json
 **/package-lock.json
