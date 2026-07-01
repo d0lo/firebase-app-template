@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+project_id         = "my-app-1234" # globally unique GCP/Firebase project id
+project_name       = "My App"
+create_project     = true
+billing_account    = "" # "XXXXXX-XXXXXX-XXXXXX" — required if create_project or enable_functions
+org_id             = "" # leave empty for a personal (no-org) Google account
+firestore_location = "nam5"
+enable_functions   = false # true requires Blaze billing
+
+github_owner      = "your-user-or-org"
+github_repository = "your-new-repo"

@@ -13,6 +13,12 @@ fixing failures. The project id is derived from the key — nothing is hardcoded
 
 > The full out-of-code settings/permissions list is in [`docs/SETTINGS.md`](docs/SETTINGS.md).
 > Note these do **not** copy when a repo is created from this template — re-apply them each time.
+>
+> **Fast path:** [`terraform/`](terraform/) provisions the entire project (Firebase project,
+> Firestore, auth, deploy service account + IAM, **and** the GitHub secrets + branch protection)
+> in one `terraform apply`. It's the only path that automates secrets and the GCP project. Prefer
+> it when the user has a billing account + can run Terraform; the phases below are the
+> click-through fallback. Either way, creating the project/billing still needs the human.
 
 ---
 

@@ -32,3 +32,10 @@ coverage/
 
 # hosting build output (app/dist is copied here before deploy)
 firebase/public/
+
+# terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfvars
+terraform/crash.log

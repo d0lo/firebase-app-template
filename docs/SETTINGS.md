@@ -24,6 +24,10 @@ admin UI). An agent following `AGENT_SETUP.md` will prompt you for the 🔴 item
 - [ ] 🔴 **Template repository toggle** *(template repo itself only)* — Settings → General →
       ✅ Template repository.
 
+> 💡 Most of the deploy-time + GCP items below (and the repo secrets + branch protection above)
+> can be provisioned in one `terraform apply` — see [`../terraform/`](../terraform/). The only
+> parts Terraform can't do are creating the billing account and the GitHub repo itself.
+
 ## Firebase Console (deploy-time)
 
 - [ ] 🔴 Firebase **project** + Firestore (location) + **Anonymous Auth**.
