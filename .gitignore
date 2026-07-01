@@ -39,3 +39,9 @@ terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/terraform.tfvars
 terraform/crash.log
+
+# playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/

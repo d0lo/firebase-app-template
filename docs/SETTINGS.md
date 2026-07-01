@@ -18,8 +18,8 @@ admin UI). An agent following `AGENT_SETUP.md` will prompt you for the 🔴 item
 - [ ] 🔴 **Branch protection on `main`** — require a PR + status checks `check` and `integration`.
 - [ ] 🔴 **Auto-delete head branches** + **squash-merge** — Settings → General → Pull Requests.
       *(optional, keeps the `feature/*` flow tidy)*
-- [ ] 🔴 **Actions policy** — Settings → Actions → General → "Allow all actions" (workflows use
-      `google-github-actions/*`).
+- [ ] 🔴 **Actions policy** — Settings → Actions → General → "Allow all actions", and enable
+      **"Allow GitHub Actions to create and approve pull requests"** (release-please opens PRs).
 - [ ] 🔴 **Repo variables** (not secrets!) — `WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`,
       `FIREBASE_PROJECT_ID` (+ 6× `VITE_FIREBASE_*` if the app uses Firebase). Set via the
       **Variables** tab. This template is **keyless** — there are no secrets to add.

@@ -17,16 +17,34 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "firebase emulators:exec --only firestore --project demo-template --config firebase/firebase.json \"vitest run -c vitest.integration.config.ts\""
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "firebase emulators:exec --only firestore --project demo-template --config firebase/firebase.json \"vitest run -c vitest.integration.config.ts\"",
+    "e2e": "playwright test",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{vue,json,yml,yaml,css,html}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
     "@eslint/js": "^9.13.0",
     "@firebase/rules-unit-testing": "^5.0.1",
+    "@playwright/test": "^1.48.0",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
     "eslint": "^9.13.0",
     "eslint-config-prettier": "^9.1.0",
     "firebase-tools": "^15.22.3",
     "globals": "^15.11.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
     "prettier": "^3.3.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.10.0",
