@@ -16,7 +16,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `npm run build --workspace app && npm run preview --workspace app -- --port ${PORT} --strictPort`,
+    command: `npm run build --workspace app && npm run preview --workspace app -- --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: `http://127.0.0.1:${PORT}`,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
