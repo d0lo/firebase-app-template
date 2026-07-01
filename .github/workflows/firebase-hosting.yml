@@ -1,21 +1,20 @@
 name: Firebase Hosting
 
-# Builds the app and deploys it: a live release on merge to main, a preview channel on PRs.
-# Project id derived from the service-account key; the app's public web config comes from the
-# VITE_FIREBASE_* repo secrets. No-ops gracefully until the secret is set.
+# Keyless deploy via Workload Identity Federation (no stored secret). Configured by repo
+# *variables*: WIF_PROVIDER, WIF_SERVICE_ACCOUNT, FIREBASE_PROJECT_ID (+ optional VITE_FIREBASE_*
+# if the app calls Firebase at runtime). Live on merge to main; preview channel on PRs.
 on:
   push:
     branches: [main]
   pull_request:
 
 permissions:
-  checks: write
   contents: read
+  id-token: write # required for Workload Identity Federation
   pull-requests: write
 
 jobs:
-  build_and_deploy:
-    # Skip PRs from forks (no access to secrets).
+  deploy:
     if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
@@ -25,37 +24,44 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "npm"
 
-      - name: Resolve project (gate on secret)
-        id: fb
-        env:
-          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Gate on WIF config
+        id: cfg
         run: |
-          if [ -z "$SA" ]; then
-            echo "No FIREBASE_SERVICE_ACCOUNT secret yet — skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          if [ -z "${{ vars.WIF_PROVIDER }}" ]; then
+            echo "Workload Identity not configured yet — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "id=$(node -e 'process.stdout.write(JSON.parse(process.env.SA).project_id)')" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google (keyless)
+        if: steps.cfg.outputs.skip != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
 
       - name: Build app
-        if: steps.fb.outputs.skip != 'true'
+        if: steps.cfg.outputs.skip != 'true'
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
         run: |
           npm ci
           npm run build
           rm -rf firebase/public && cp -r app/dist firebase/public
 
-      - name: Deploy to Firebase Hosting
-        if: steps.fb.outputs.skip != 'true'
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: ${{ steps.fb.outputs.id }}
-          entryPoint: ./firebase
-          channelId: ${{ github.event_name == 'push' && 'live' || '' }}
+      - name: Deploy (live on main, preview channel on PR)
+        if: steps.cfg.outputs.skip != 'true'
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            npx firebase deploy --only hosting \
+              --project "${{ vars.FIREBASE_PROJECT_ID }}" \
+              --config firebase/firebase.json --non-interactive
+          else
+            npx firebase hosting:channel:deploy "pr-${{ github.event.number }}" --expires 7d \
+              --project "${{ vars.FIREBASE_PROJECT_ID }}" \
+              --config firebase/firebase.json --non-interactive
+          fi

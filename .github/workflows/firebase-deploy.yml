@@ -1,8 +1,7 @@
 name: Deploy Firestore rules
 
-# Deploys security rules via w9jds/firebase-action. Configured entirely by the
-# FIREBASE_SERVICE_ACCOUNT secret — the project id is derived from the key, so there's
-# nothing to hardcode. No-ops gracefully until the secret is set.
+# Keyless deploy via Workload Identity Federation. Configured by repo variables
+# WIF_PROVIDER, WIF_SERVICE_ACCOUNT, FIREBASE_PROJECT_ID. No-ops until they're set.
 on:
   push:
     branches: [main]
@@ -14,29 +13,37 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   deploy_rules:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
 
-      - name: Resolve project (gate on secret)
-        id: fb
-        env:
-          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Gate on WIF config
+        id: cfg
         run: |
-          if [ -z "$SA" ]; then
-            echo "No FIREBASE_SERVICE_ACCOUNT secret yet — skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          if [ -z "${{ vars.WIF_PROVIDER }}" ]; then
+            echo "Workload Identity not configured yet — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "id=$(node -e 'process.stdout.write(JSON.parse(process.env.SA).project_id)')" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google (keyless)
+        if: steps.cfg.outputs.skip != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
 
       - name: Deploy Firestore rules
-        if: steps.fb.outputs.skip != 'true'
-        uses: w9jds/firebase-action@master
-        with:
-          args: deploy --only firestore:rules --project ${{ steps.fb.outputs.id }}
-        env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          PROJECT_PATH: ./firebase
+        if: steps.cfg.outputs.skip != 'true'
+        run: |
+          npm ci
+          npx firebase deploy --only firestore:rules \
+            --project "${{ vars.FIREBASE_PROJECT_ID }}" \
+            --config firebase/firebase.json --non-interactive

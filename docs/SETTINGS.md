@@ -19,14 +19,16 @@ admin UI). An agent following `AGENT_SETUP.md` will prompt you for the 🔴 item
 - [ ] 🔴 **Auto-delete head branches** + **squash-merge** — Settings → General → Pull Requests.
       *(optional, keeps the `feature/*` flow tidy)*
 - [ ] 🔴 **Actions policy** — Settings → Actions → General → "Allow all actions" (workflows use
-      third-party actions: `w9jds/*`, `FirebaseExtended/*`, `google-github-actions/*`).
-- [ ] 🔴 **Repo secrets** — `FIREBASE_SERVICE_ACCOUNT` and 6× `VITE_FIREBASE_*`.
+      `google-github-actions/*`).
+- [ ] 🔴 **Repo variables** (not secrets!) — `WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`,
+      `FIREBASE_PROJECT_ID` (+ 6× `VITE_FIREBASE_*` if the app uses Firebase). Set via the
+      **Variables** tab. This template is **keyless** — there are no secrets to add.
 - [ ] 🔴 **Template repository toggle** *(template repo itself only)* — Settings → General →
       ✅ Template repository.
 
-> 💡 Most of the deploy-time + GCP items below (and the repo secrets + branch protection above)
-> can be provisioned in one `terraform apply` — see [`../terraform/`](../terraform/). The only
-> parts Terraform can't do are creating the billing account and the GitHub repo itself.
+> 💡 Most of the deploy-time + GCP items below (and the repo variables + branch protection above)
+> are provisioned in one `terraform apply` — see [`../terraform/`](../terraform/). Terraform can't
+> only create the billing account and the GitHub repo itself.
 
 ## Firebase Console (deploy-time)
 
@@ -35,19 +37,17 @@ admin UI). An agent following `AGENT_SETUP.md` will prompt you for the 🔴 item
 - [ ] 🔴 **Auth → Authorized domains** — add any **custom domain**; sign-in silently fails on
       unlisted domains (`*.web.app`/`*.firebaseapp.com` are auto-added).
 
-## Google Cloud / IAM (deploy-time)
+## Google Cloud / IAM (deploy-time — done by `scripts/setup.sh` or Terraform)
 
-- [ ] 🔴 Service-account **key** = the `FIREBASE_SERVICE_ACCOUNT` secret. **Keep it** — it's the
-      ongoing CI deploy credential; do **not** delete it after setup.
-- [ ] 🤖/🔴 **APIs** — Firestore + Identity Toolkit (the bootstrap workflow enables these).
-      Functions v2 also needs Cloud Functions, Cloud Build, Artifact Registry, Cloud Run,
-      Eventarc, Pub/Sub (usually auto-enabled on first deploy).
+- [ ] 🔴 **Keyless auth (Workload Identity Federation)** — no service-account key exists. GitHub
+      authenticates with short-lived OIDC tokens; the deploy SA has **least-privilege** roles
+      (hosting/rules/datastore, + Functions roles only if enabled) and can be impersonated **only
+      by this repo**. Set up by `scripts/setup.sh` (Cloud Shell) or `terraform apply`.
+- [ ] 🤖/🔴 **APIs** — enabled by the setup script/Terraform (IAM, STS, Firestore, Identity
+      Toolkit, Hosting; + Functions/Build/Artifact/Run/Eventarc/PubSub when Functions are on).
 
 ## Hardening (before public launch)
 
-- [ ] **Scope the SA role down** from `Owner` to least-privilege (hosting.admin,
-      cloudfunctions.developer, firebaserules.admin, datastore.user, + serviceAccountUser /
-      cloudbuild / artifactregistry for Functions). Verify against a real deploy first.
 - [ ] **Budget + alerts** (Cloud Billing) once on Blaze.
 - [ ] **App Check** — block non-app clients from Firestore/Functions.
 - [ ] **Firestore backups / PITR**.

@@ -1,9 +1,10 @@
 # Terraform — one-command project provisioning
 
-Provisions an entire new project from `terraform apply`: the GCP/Firebase project, Firestore,
-anonymous auth, a web app, a scoped deploy service account + IAM, and it pushes the
-`FIREBASE_SERVICE_ACCOUNT` + `VITE_FIREBASE_*` **GitHub secrets** and **branch protection** into
-your repo. This is the only option that also automates secrets and the Firebase project itself.
+Provisions an entire new project from `terraform apply`, **keyless**: the GCP/Firebase project,
+Firestore, anonymous auth, a web app, a least-privilege deploy service account, **Workload
+Identity Federation** (so GitHub authenticates with no stored key), and it sets the GitHub repo
+**variables** (`WIF_*`, `FIREBASE_PROJECT_ID`, `VITE_FIREBASE_*`) + **branch protection**. No
+service-account key is ever created — there are no secrets.
 
 Free: Terraform (or OpenTofu) and the providers cost nothing; you only pay for the Firebase/GCP
 resources you'd pay for anyway.

@@ -1,7 +1,11 @@
 locals {
   base_services = [
     "serviceusage.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "sts.googleapis.com",
     "firebase.googleapis.com",
+    "firebasehosting.googleapis.com",
     "firestore.googleapis.com",
     "identitytoolkit.googleapis.com",
   ]
@@ -14,6 +18,7 @@ locals {
     "pubsub.googleapis.com",
   ]
   services = concat(local.base_services, var.enable_functions ? local.functions_services : [])
+  repo     = "${var.github_owner}/${var.github_repository}"
 }
 
 # ── GCP project (optional) ─────────────────────────────────────────────────────
@@ -51,7 +56,6 @@ resource "google_firestore_database" "this" {
   depends_on  = [google_firebase_project.this]
 }
 
-# Enable anonymous sign-in.
 resource "google_identity_platform_config" "auth" {
   provider   = google-beta
   project    = local.project_id
@@ -77,18 +81,16 @@ data "google_firebase_web_app_config" "this" {
   web_app_id = google_firebase_web_app.this.app_id
 }
 
-# ── Deploy service account (the GitHub Actions credential) ─────────────────────
+# ── Least-privilege deploy service account (impersonated via WIF; NO key) ───────
 resource "google_service_account" "deploy" {
   project      = local.project_id
   account_id   = "ci-deploy"
-  display_name = "CI deploy (GitHub Actions)"
+  display_name = "CI deploy (GitHub Actions, keyless)"
 }
 
 locals {
-  # firebase.admin covers Hosting + rules + Firestore admin + project management
-  # (scoped to Firebase, not full Owner). Functions v2 needs the extra roles.
   deploy_roles = concat(
-    ["roles/firebase.admin", "roles/datastore.user"],
+    ["roles/firebasehosting.admin", "roles/firebaserules.admin", "roles/datastore.user"],
     var.enable_functions ? [
       "roles/cloudfunctions.developer",
       "roles/iam.serviceAccountUser",
@@ -106,20 +108,42 @@ resource "google_project_iam_member" "deploy" {
   member   = "serviceAccount:${google_service_account.deploy.email}"
 }
 
-resource "google_service_account_key" "deploy" {
+# ── Workload Identity Federation: GitHub OIDC -> impersonate the deploy SA ──────
+resource "google_iam_workload_identity_pool" "github" {
+  project                   = local.project_id
+  workload_identity_pool_id = "github-pool"
+  display_name              = "GitHub Actions"
+  depends_on                = [google_project_service.svc]
+}
+
+resource "google_iam_workload_identity_pool_provider" "github" {
+  project                            = local.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-provider"
+  display_name                       = "GitHub OIDC"
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.repository" = "assertion.repository"
+  }
+  attribute_condition = "assertion.repository == \"${local.repo}\""
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+}
+
+# Only this repo may impersonate the deploy account.
+resource "google_service_account_iam_member" "wif" {
   service_account_id = google_service_account.deploy.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${local.repo}"
 }
 
-# ── GitHub: secrets + branch protection ───────────────────────────────────────
-# The workflows JSON.parse this, so store the DECODED key (not the base64 blob).
-resource "github_actions_secret" "sa" {
-  repository      = var.github_repository
-  secret_name     = "FIREBASE_SERVICE_ACCOUNT"
-  plaintext_value = base64decode(google_service_account_key.deploy.private_key)
-}
-
-resource "github_actions_secret" "vite" {
+# ── GitHub: repo VARIABLES (no secrets — everything here is non-sensitive) ──────
+resource "github_actions_variable" "config" {
   for_each = {
+    WIF_PROVIDER                      = google_iam_workload_identity_pool_provider.github.name
+    WIF_SERVICE_ACCOUNT               = google_service_account.deploy.email
+    FIREBASE_PROJECT_ID               = local.project_id
     VITE_FIREBASE_API_KEY             = data.google_firebase_web_app_config.this.api_key
     VITE_FIREBASE_AUTH_DOMAIN         = data.google_firebase_web_app_config.this.auth_domain
     VITE_FIREBASE_PROJECT_ID          = local.project_id
@@ -127,9 +151,9 @@ resource "github_actions_secret" "vite" {
     VITE_FIREBASE_MESSAGING_SENDER_ID = data.google_firebase_web_app_config.this.messaging_sender_id
     VITE_FIREBASE_APP_ID              = google_firebase_web_app.this.app_id
   }
-  repository      = var.github_repository
-  secret_name     = each.key
-  plaintext_value = each.value
+  repository    = var.github_repository
+  variable_name = each.key
+  value         = each.value
 }
 
 resource "github_branch_protection" "main" {
