@@ -1,6 +1,6 @@
 {
   "name": "firebase-app-template",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "license": "UNLICENSED",
   "description": "Opinionated Firebase + web app starter with CI/CD and an agent setup runbook.",
