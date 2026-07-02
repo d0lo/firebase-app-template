@@ -70,25 +70,38 @@ jobs:
             echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
           fi
 
-      # Restore the PR-comment behaviour of FirebaseExtended/action-hosting-deploy without
+      # Restore the PR-surfacing behaviour of FirebaseExtended/action-hosting-deploy without
       # reintroducing a stored service-account key — we deploy keyless via the CLI above and
-      # post the channel URL here. Sticky (find-or-update by marker) so it updates in place on
-      # every push instead of stacking new comments.
-      - name: Comment preview URL on PR
+      # surface the channel URL here, both as a sticky comment and as a banner at the top of the
+      # PR body. Both are marker-based (find-or-update) so they refresh in place on every push
+      # and the body edit only ever touches its own region, never the author's description.
+      - name: Surface preview URL on PR (comment + body banner)
         if: steps.cfg.outputs.skip != 'true' && github.event_name == 'pull_request' && steps.deploy.outputs.preview_url != ''
         uses: actions/github-script@v7
         with:
           script: |
             const url = '${{ steps.deploy.outputs.preview_url }}';
             const sha = context.payload.pull_request.head.sha.substring(0, 7);
-            const marker = '<!-- firebase-preview -->';
-            const body = `${marker}\n### 🔗 Firebase preview\n\n**${url}**\n\nDeployed from \`${sha}\` · expires in 7 days · updates on every push to this PR.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
+
+            // 1) Sticky comment (find-or-update by marker).
+            const cMarker = '<!-- firebase-preview -->';
+            const cBody = `${cMarker}\n### 🔗 Firebase preview\n\n**${url}**\n\nDeployed from \`${sha}\` · expires in 7 days · updates on every push to this PR.`;
             const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
-            const existing = comments.find((c) => c.body.includes(marker));
+            const existing = comments.find((c) => c.body.includes(cMarker));
             if (existing) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: cBody });
             } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              await github.rest.issues.createComment({ owner, repo, issue_number, body: cBody });
             }
+
+            // 2) Banner in a marked region at the top of the PR body (updated in place; the rest
+            //    of the description is left untouched).
+            const start = '<!-- firebase-preview-body -->';
+            const end = '<!-- /firebase-preview-body -->';
+            const banner = `${start}\n> ### 🔗 Firebase preview — **${url}**\n> Deployed from \`${sha}\` · refreshes on every push · expires 7 days after the last.\n${end}`;
+            let prBody = context.payload.pull_request.body || '';
+            const region = new RegExp(`${start}[\\s\\S]*?${end}`);
+            prBody = region.test(prBody) ? prBody.replace(region, banner) : `${banner}\n\n${prBody}`;
+            await github.rest.pulls.update({ owner, repo, pull_number: issue_number, body: prBody });
