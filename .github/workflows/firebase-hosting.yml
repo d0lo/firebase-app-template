@@ -54,6 +54,7 @@ jobs:
           rm -rf firebase/public && cp -r app/dist firebase/public
 
       - name: Deploy (live on main, preview channel on PR)
+        id: deploy
         if: steps.cfg.outputs.skip != 'true'
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -61,7 +62,33 @@ jobs:
               --project "${{ vars.FIREBASE_PROJECT_ID }}" \
               --config firebase/firebase.json --non-interactive
           else
-            npx firebase hosting:channel:deploy "pr-${{ github.event.number }}" --expires 7d \
+            OUT=$(npx firebase hosting:channel:deploy "pr-${{ github.event.number }}" --expires 7d \
               --project "${{ vars.FIREBASE_PROJECT_ID }}" \
-              --config firebase/firebase.json --non-interactive
+              --config firebase/firebase.json --non-interactive --json)
+            echo "$OUT"
+            URL=$(echo "$OUT" | jq -r '[.result[].url][0] // empty')
+            echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
           fi
+
+      # Restore the PR-comment behaviour of FirebaseExtended/action-hosting-deploy without
+      # reintroducing a stored service-account key — we deploy keyless via the CLI above and
+      # post the channel URL here. Sticky (find-or-update by marker) so it updates in place on
+      # every push instead of stacking new comments.
+      - name: Comment preview URL on PR
+        if: steps.cfg.outputs.skip != 'true' && github.event_name == 'pull_request' && steps.deploy.outputs.preview_url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.preview_url }}';
+            const sha = context.payload.pull_request.head.sha.substring(0, 7);
+            const marker = '<!-- firebase-preview -->';
+            const body = `${marker}\n### 🔗 Firebase preview\n\n**${url}**\n\nDeployed from \`${sha}\` · expires in 7 days · updates on every push to this PR.`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.find((c) => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
